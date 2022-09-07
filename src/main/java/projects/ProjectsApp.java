@@ -18,10 +18,13 @@ import projects.service.ProjectService;
 public class ProjectsApp {
   private Scanner scanner = new Scanner(System.in);
   private ProjectService projectService = new ProjectService();
+  private Project curProject;
 
   // @formatter:off
   private List<String> operations = List.of(
-      "1) Add a project"
+      "1) Add a project",
+      "2) List projects",
+      "3) Select a project"
   );
   // @formatter:on
 
@@ -54,6 +57,14 @@ public class ProjectsApp {
             createProject();
             break;
 
+          case 2:
+            listProjects();
+            break;
+
+          case 3:
+            selectProject();
+            break;
+
           default:
             System.out.println("\n" + selection + " is not a valid selection. Try again.");
             break;
@@ -63,6 +74,38 @@ public class ProjectsApp {
         System.out.println("\nError: " + e + " Try again.");
       }
     }
+  }
+
+  /**
+   * This method allows the user to select a "current" project. The current project is one on which
+   * you can add materials, steps, and categories.
+   */
+  private void selectProject() {
+    listProjects();
+    Integer projectId = getIntInput("Enter a project ID to select a project");
+
+    /*
+     * Unselect the current project. This must be done as a pre-step to fetching the project because
+     * fetchProjectById() will throw an exception if an invalid project ID is entered, which would
+     * leave the currently selected project intact.
+     */
+    curProject = null;
+
+    /* This will throw an exception if an invalid project ID is entered. */
+    curProject = projectService.fetchProjectById(projectId);
+  }
+
+  /**
+   * This method calls the project service to retrieve a list of projects from the projects table.
+   * It then uses a Lambda expression to print the project IDs and names on the console. 
+   */
+  private void listProjects() {
+    List<Project> projects = projectService.fetchAllProjects();
+
+    System.out.println("\nProjects:");
+
+    projects.forEach(project -> System.out
+        .println("   " + project.getProjectId() + ": " + project.getProjectName()));
   }
 
   /**
@@ -174,7 +217,7 @@ public class ProjectsApp {
   }
 
   /**
-   * Print the menu selections, one per line. 
+   * Print the menu selections, one per line.
    */
   private void printOperations() {
     System.out.println("\nThese are the available selections. Press the Enter key to quit:");
@@ -186,6 +229,13 @@ public class ProjectsApp {
     // for(String line : operations) {
     // System.out.println(" " + line);
     // }
+
+    if(Objects.isNull(curProject)) {
+      System.out.println("\nYou are not working with a project.");
+    }
+    else {
+      System.out.println("\nYou are working with project: " + curProject);
+    }
   }
 }
 
