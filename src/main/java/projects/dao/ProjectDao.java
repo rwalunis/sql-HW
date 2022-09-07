@@ -28,7 +28,7 @@ import provided.util.DaoBase;
 public class ProjectDao extends DaoBase {
   private static final String CATEGORY_TABLE = "category";
   private static final String MATERIAL_TABLE = "material";
-  private static final String PROJECT_TABLE = "projects"; //make sure to match what your table is called in your DB. i had to switch mine to projects(plural)
+  private static final String PROJECT_TABLE = "projects";
   private static final String PROJECT_CATEGORY_TABLE = "project_category";
   private static final String STEP_TABLE = "step";
 
@@ -132,7 +132,7 @@ public class ProjectDao extends DaoBase {
    * @throws DbException Thrown if a SQLException is returned by the driver.
    */
   public Optional<Project> fetchProjectById(Integer projectId) {
-    String sql = "SELECT * FROM projects where project_id = ?";
+    String sql = "SELECT * FROM " + PROJECT_TABLE + " WHERE project_id = ?";
 
     try(Connection conn = DbConnection.getConnection()) {
       startTransaction(conn);
@@ -150,7 +150,8 @@ public class ProjectDao extends DaoBase {
 
           /*
            * Alternate approach. If you know your parameter will never be null you can set the
-           * parameter on the statement directly using JDBC.
+           * parameter on the statement directly using JDBC. If the parameter might be null, you
+           * must perform a null check and call rs.setNull() if it is null.
            */
           // stmt.setInt(1, projectId);
 
@@ -283,6 +284,92 @@ public class ProjectDao extends DaoBase {
 
         return materials;
       }
+    }
+  }
+
+  /**
+   * This method uses JDBC calls to modify the project details. An UPDATE statement is used for
+   * this.
+   * 
+   * @param project The project object with modified details.
+   * @return {@code true} if the project was modified successfully. {@code false} if an invalid
+   *         project ID is supplied.
+   * @throws DbException Thrown if a SQLException is thrown by the driver.
+   */
+  public boolean modifyProjectDetails(Project project) {
+    // @formatter:off
+    String sql = ""
+        + "UPDATE " + PROJECT_TABLE + " SET "
+        + "project_name = ?, "
+        + "estimated_hours = ?, "
+        + "actual_hours = ?, "
+        + "difficulty = ?, "
+        + "notes = ? "
+        + "WHERE project_id = ?";
+    // @formatter:on
+
+    try(Connection conn = DbConnection.getConnection()) {
+      startTransaction(conn);
+
+      try(PreparedStatement stmt = conn.prepareStatement(sql)) {
+        setParameter(stmt, 1, project.getProjectName(), String.class);
+        setParameter(stmt, 2, project.getEstimatedHours(), BigDecimal.class);
+        setParameter(stmt, 3, project.getActualHours(), BigDecimal.class);
+        setParameter(stmt, 4, project.getDifficulty(), Integer.class);
+        setParameter(stmt, 5, project.getNotes(), String.class);
+        setParameter(stmt, 6, project.getProjectId(), Integer.class);
+
+        boolean modified = stmt.executeUpdate() == 1;
+        commitTransaction(conn);
+
+        return modified;
+      }
+      catch(Exception e) {
+        rollbackTransaction(conn);
+        throw new DbException(e);
+      }
+    }
+    catch(SQLException e) {
+      throw new DbException(e);
+    }
+  }
+
+  /**
+   * This method deletes the project row from the project table if the project ID is found in an
+   * existing row. All child rows (materials, steps and category associations) are deleted as well
+   * because the foreign keys in those tables were created by specifying ON DELETE CASCADE.
+   * 
+   * @param projectId The project ID of the project to delete.
+   * @return {@code true} if the project was deleted. {@code false} if an invalid project ID is
+   *         supplied.
+   * @throws DbException Thrown if the driver throws a {@link SQLException}.
+   */
+  public boolean deleteProject(Integer projectId) {
+    String sql = "DELETE FROM " + PROJECT_TABLE + " WHERE project_id = ?";
+
+    try(Connection conn = DbConnection.getConnection()) {
+      startTransaction(conn);
+
+      try(PreparedStatement stmt = conn.prepareStatement(sql)) {
+        setParameter(stmt, 1, projectId, Integer.class);
+
+        /*
+         * If the project ID is correct, the number of rows modified will be 1. This is the value
+         * returned by executeUpdate(). The value will be 1 even if child rows are deleted because
+         * ON DELETE CASCADE is specified.
+         */
+        boolean deleted = stmt.executeUpdate() == 1;
+
+        commitTransaction(conn);
+        return deleted;
+      }
+      catch(Exception e) {
+        rollbackTransaction(conn);
+        throw new DbException(e);
+      }
+    }
+    catch(SQLException e) {
+      throw new DbException(e);
     }
   }
 
